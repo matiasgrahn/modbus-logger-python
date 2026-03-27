@@ -38,7 +38,7 @@ if __name__ == "__main__":
     # Kirjoitetaan otsikot vain, jos tiedosto on tyhjä
     with open(FILE_NAME, mode='w', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow(['Aikaleima', 'Reg0', 'Reg1', 'Reg2', 'Reg3', 'Reg4'])
+        writer.writerow(['Aikaleima', 'Testi', 'Reg1', 'Reg2', 'Reg3', 'Reg4'])
     
     for i in range(5):
         log_data()
