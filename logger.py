@@ -2,19 +2,23 @@ import csv
 import time
 import random
 import pyodbc  # Lisää tämä
+import os
+from dotenv import load_dotenv
 from datetime import datetime
 from pymodbus.client import ModbusTcpClient
 
-SERVER_IP = '127.0.0.1'
-PORT = 502
+load_dotenv()
+SERVER_IP = os.getenv('SERVER_IP')
+PORT = os.getenv('SERVER_PORT')
 FILE_NAME = 'modbus_data.csv'
+
 
 # SQL-yhteysasetukset (Samat kuin PowerShellissäsi)
 SQL_CONFIG = (
-    "DRIVER={SQL Server};"
-    "SERVER=localhost\\SQLEXPRESS;"
-    "DATABASE=InventoryDB;"
-    "Trusted_Connection=yes;"
+    f"DRIVER={{SQL Server}};"
+    f"SERVER={db_server};"
+    f"DATABASE={db_name};"
+    f"Trusted_Connection=yes;"
 )
 
 def log_to_sql(data):
