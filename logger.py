@@ -12,7 +12,8 @@ SERVER_IP = os.getenv('SERVER_IP')
 PORT = os.getenv('SERVER_PORT')
 FILE_NAME = 'modbus_data.csv'
 
-
+db_server = os.getenv('DB_SERVER')
+db_name = os.getenv('DB_NAME')
 # SQL-yhteysasetukset (Samat kuin PowerShellissäsi)
 SQL_CONFIG = (
     f"DRIVER={{SQL Server}};"
