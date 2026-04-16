@@ -43,7 +43,7 @@ def log_data():
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
     if client.connect():
-        result = client.read_holding_registers(0, 8)
+        result = client.read_holding_registers(address=0, count=8)
         data = result.registers if not result.isError() else [0] * 8
         client.close()
     else:
