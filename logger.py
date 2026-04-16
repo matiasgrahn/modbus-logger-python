@@ -1,48 +1,77 @@
 import csv
 import time
 import random
+import pyodbc  # Lisää tämä
 from datetime import datetime
 from pymodbus.client import ModbusTcpClient
 
-SERVER_IP = '127.0.0.1' # Muuta takaisin jos käytät julkista
+SERVER_IP = '127.0.0.1'
 PORT = 502
 FILE_NAME = 'modbus_data.csv'
+
+# SQL-yhteysasetukset (Samat kuin PowerShellissäsi)
+SQL_CONFIG = (
+    "DRIVER={SQL Server};"
+    "SERVER=localhost\\SQLEXPRESS;"
+    "DATABASE=InventoryDB;"
+    "Trusted_Connection=yes;"
+)
+
+def log_to_sql(data):
+    try:
+        conn = pyodbc.connect(SQL_CONFIG)
+        cursor = conn.cursor()
+        # SQL-lause 8 rekisterille
+        query = """INSERT INTO ModbusLog 
+                   (Lampotila, Paine, Virtaus, Pumppu, Venttiili, Kierrokset, Teho, Jannite) 
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)"""
+        cursor.execute(query, data)
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print(" -> Tallennettu SQL-tietokantaan.")
+    except Exception as e:
+        print(f" -> SQL-virhe: {e}")
 
 def log_data():
     client = ModbusTcpClient(SERVER_IP, port=PORT)
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
-    # Yritetään yhdistää, mutta jos ei onnistu, simuloidaan
     if client.connect():
-        # MUUTOS: Luetaan nyt 8 rekisteriä (0-7)
         result = client.read_holding_registers(0, 8)
-        if not result.isError():
-            data = result.registers
-        else:
-            data = [0] * 8 # Virhetilanne: 8 nollaa
+        data = result.registers if not result.isError() else [0] * 8
         client.close()
     else:
-        # TÄMÄ ON SIMULAATIO: Keksitään luvut
-        # MUUTOS: Generoidaan 8 satunnaislukua
-        data = [random.randint(20, 30) for _ in range(3)] # Reg0-2: Lämpö/Paine
-        data += [random.randint(0, 1) for _ in range(2)]   # Reg3-4: Tila (päällä/pois)
-        data += [random.randint(100, 200) for _ in range(3)] # Reg5-7: Muu data
+        # Simulaatio (kuten alkuperäisessä koodissasi)
+        data = [random.randint(20, 30) for _ in range(3)] 
+        data += [random.randint(0, 1) for _ in range(2)]   
+        data += [random.randint(100, 200) for _ in range(3)] 
         
-    # Tallennetaan data
+    # 1. Tallennus CSV:lle (pidetään varmuuskopiona)
     with open(FILE_NAME, mode='a', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
         writer.writerow([timestamp] + data)
+    
+    # 2. Tallennus SQL:lle (UUSI TOIMINTO)
+    log_to_sql(data)
+
+# ... (pidä aiemmat importit ja log_to_sql -funktio samana) ...
 
 if __name__ == "__main__":
-    # MUUTOS: Päivitetään otsikot vastaamaan 8 rekisteriä
-    with open(FILE_NAME, mode='w', newline='', encoding='utf-8') as file:
+    # Alustetaan CSV kerran
+    with open(FILE_NAME, mode='a', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
-        writer.writerow(['Aikaleima', 'Lämpötila (Reg0)', 'Paine (Reg1)', 'Virtaus (Reg2)', 
-                         'Pumppu (Reg3)', 'Venttiili (Reg4)', 'Kierrokset (Reg5)', 
-                         'Teho (Reg6)', 'Jännite (Reg7)'])
+        # Kirjoitetaan otsikot vain jos tiedosto on uusi
+        if file.tell() == 0:
+            writer.writerow(['Aikaleima', 'Lämpötila', 'Paine', 'Virtaus', 
+                             'Pumppu', 'Venttiili', 'Kierrokset', 'Teho', 'Jännite'])
     
-    print("Aloitetaan loggaus...")
-    for i in range(10): # Tehdään 10 mittausta
-        log_data()
-        time.sleep(1)
-    print("Loggaus valmis. Aja visualize_data.py seuraavaksi.")
+    print("Käynnistetään jatkuva tiedonkeruu (CSV + SQL)...")
+    print("Paina Ctrl+C lopettaaksesi.")
+
+    try:
+        while True:
+            log_data()
+            time.sleep(3) 
+    except KeyboardInterrupt:
+        print("\nLoggaus keskeytetty. Data on tallennettu tietokantaan.")
