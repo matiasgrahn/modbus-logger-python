@@ -7,21 +7,46 @@ from datetime import datetime
 from dotenv import load_dotenv
 from pymodbus.client import ModbusTcpClient
 
-# 1. Asetukset .env-tiedostosta
+# 1. Ladataan asetukset .env-tiedostosta
 load_dotenv()
+
+# Yleiset asetukset
 SERVER_IP = os.getenv('SERVER_IP')
-PORT = os.getenv('SERVER_PORT')
-DB_SERVER = os.getenv('DB_SERVER')
-DB_NAME = os.getenv('DB_NAME')
+SERVER_PORT = os.getenv('SERVER_PORT')
 FILE_NAME = 'modbus_combined_data.csv'
 
-# SQL-yhteysasetukset
-SQL_CONFIG = (
-    f"DRIVER={{SQL Server}};"
-    f"SERVER={DB_SERVER};"
-    f"DATABASE={DB_NAME};"
-    f"Trusted_Connection=yes;"
-)
+# --- TIETOKANTAVALINTA ---
+print("--- Select Database Destination ---")
+print("1. Local Database (Trusted Connection)")
+print("2. Azure VM Database (SQL Authentication via VPN)")
+db_choice = input("Select (1/2): ")
+
+if db_choice == "1":
+    # Haetaan lokaalit asetukset
+    DB_NAME = os.getenv('DB_NAME_LOCAL')
+    SQL_CONFIG = (
+        f"DRIVER={{SQL Server}};"
+        f"SERVER=localhost;"
+        f"DATABASE={DB_NAME};"
+        f"Trusted_Connection=yes;"
+    )
+    print(f">> Target set to LOCAL: {DB_NAME}")
+else:
+    # Haetaan Azure-asetukset .env-tiedostosta
+    DB_SERVER = os.getenv('DB_SERVER')
+    DB_NAME = os.getenv('DB_NAME_AZURE')
+    DB_USER = os.getenv('DB_USER')
+    DB_PASS = os.getenv('DB_PASS')
+    
+    SQL_CONFIG = (
+        f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+        f"SERVER={DB_SERVER};"
+        f"DATABASE={DB_NAME};"
+        f"UID={DB_USER};"
+        f"PWD={DB_PASS};"
+        f"Encrypt=no;"
+    )
+    print(f">> Target set to AZURE: {DB_NAME} ({DB_SERVER})")
 
 def log_to_sql(data):
     try:
@@ -39,11 +64,10 @@ def log_to_sql(data):
         print(f" -> SQL-virhe: {e}")
 
 def run_system():
-    client = ModbusTcpClient(SERVER_IP, port=PORT)
+    client = ModbusTcpClient(SERVER_IP, port=SERVER_PORT)
     print(f"--- Järjestelmä käynnistetty ---")
     print("Paina Ctrl + C lopettaaksesi.")
 
-    # Alustetaan CSV-otsikot jos tiedosto on uusi
     if not os.path.exists(FILE_NAME):
         with open(FILE_NAME, mode='w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
@@ -54,7 +78,6 @@ def run_system():
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
             if client.connect():
-                # VAIHE 1: Kirjoitetaan uudet random-arvot väylään
                 new_values = [
                     random.randint(20, 80),    # Lämpötila
                     random.randint(950, 1050), # Paine
@@ -67,26 +90,23 @@ def run_system():
                 ]
                 client.write_registers(address=0, values=new_values)
                 print(f"[{timestamp}] Kirjoitettu väylään: {new_values[:3]}...")
-                print("Kirjoitettu! Odota hetki...")
-                time.sleep(1) # Lisää tämä väliaikaisesti
-                # VAIHE 2: Luetaan arvot takaisin (varmistus)
+                time.sleep(1) 
+                
                 result = client.read_holding_registers(address=0, count=8)
                 if not result.isError():
                     data = result.registers
                     
-                    # VAIHE 3: Tallennus CSV
                     with open(FILE_NAME, mode='a', newline='', encoding='utf-8') as f:
                         writer = csv.writer(f)
                         writer.writerow([timestamp] + data)
                     
-                    # VAIHE 4: Tallennus SQL
                     log_to_sql(data)
                 
                 client.close()
             else:
                 print(f"[{timestamp}] Virhe: Modbus Slaveen ei saada yhteyttä.")
             
-            time.sleep(3) # Odota 3 sekuntia ennen seuraavaa kierrosta
+            time.sleep(3) 
 
     except KeyboardInterrupt:
         print("\nJärjestelmä pysäytetty käyttäjän toimesta.")
